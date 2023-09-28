@@ -12,14 +12,14 @@ struct Player;
 #[derive(Resource)]
 struct Animations {
     idle: Handle<AnimationClip>,
-    walk_forwards: Handle<AnimationClip>,
+    run_forwards: Handle<AnimationClip>,
     walk_backwards: Handle<AnimationClip>,
     punch: Handle<AnimationClip>,
     kick : Handle<AnimationClip>,
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.insert_resource(ClearColor(Color::rgb(0.4, 0.4, 0.4)));
+fn setup_camera(mut commands: Commands) {
+    commands.insert_resource(ClearColor(Color::rgb(0.3, 0.3, 0.6)));
 
     let camera = Camera3dBundle {
         camera: Camera {
@@ -40,11 +40,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         transform: Transform::from_xyz(4.0, 5.0, 4.0),
         ..default()
     });
+}
+
+fn setup_player(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     let guy = asset_server.load("ninja.glb#Scene0");
     commands
         .spawn(SceneBundle {
             scene: guy.clone_weak(),
+            transform : Transform::from_rotation(Quat::from_rotation_y(std::f32::consts::PI / 2.0)),
             ..default()
         })
         .insert(Player)
@@ -61,8 +65,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         idle: asset_server.load("ninja.glb#Animation0"),
         kick: asset_server.load("ninja.glb#Animation1"),
         punch: asset_server.load("ninja.glb#Animation2"),
-        walk_forwards: asset_server.load("ninja.glb#Animation2"),
-        walk_backwards: asset_server.load("ninja.glb#Animation3"),
+        run_forwards: asset_server.load("ninja.glb#Animation3"),
+        walk_backwards: asset_server.load("ninja.glb#Animation4"),
     });
 }
 
@@ -117,51 +121,39 @@ fn process_input(
             animation_player
                 .play_with_transition(animations.kick.clone(), transition_duration);
         }
-        /*
-        if keys.pressed(KeyCode::W) && keys.just_pressed(KeyCode::ShiftLeft) {
+
+        if keys.just_pressed(KeyCode::D) {
             animation_player
-                .play_with_transition(animations.run.clone(), transition_duration)
+                .play_with_transition(animations.run_forwards.clone(), transition_duration)
                 .repeat();
         }
 
-        if keys.just_pressed(KeyCode::W) && !keys.pressed(KeyCode::ShiftLeft) {
+        if keys.just_pressed(KeyCode::A) {
             animation_player
-                .play_with_transition(animations.walk.clone(), transition_duration)
+                .play_with_transition(animations.walk_backwards.clone(), transition_duration)
                 .repeat();
         }
 
-        if keys.pressed(KeyCode::W) && keys.just_released(KeyCode::ShiftLeft) {
-            animation_player
-                .play_with_transition(animations.walk.clone(), transition_duration)
-                .repeat();
-        }
-
-        if keys.just_released(KeyCode::W) {
+        if keys.just_released(KeyCode::A) || keys.just_released(KeyCode::D) {
             animation_player
                 .play_with_transition(animations.idle.clone(), transition_duration)
                 .repeat();
         }
+
+               
         //Should make this a function
         let parent_entity = parent_query.get(parent.get()).unwrap();
         let mut player  = player.get_mut(parent_entity.get()).unwrap();
         
 
-        if keys.just_pressed(KeyCode::A) {
-            animation_player
-                .play_with_transition(animations.left_turn.clone(), transition_duration);
-        }
 
         if keys.pressed(KeyCode::A) {
-            player.1.rotate_local_y(0.005);// *= Quat::from_rotation_y(0.005);
+            player.0.translation = Some(Vec3::new(-0.02, 0.0, 0.0));
         }
 
-        if keys.pressed(KeyCode::W) {
-            if keys.pressed(KeyCode::ShiftLeft) {
-                player.0.translation = Some(Vec3::new(0.0, 0.0, 0.02));
-            } else {
-                player.0.translation = Some(Vec3::new(0.0, 0.0, 0.01));
-            }
-        }*/
+        if keys.pressed(KeyCode::D) {
+            player.0.translation = Some(Vec3::new(0.02, 0.0, 0.0));
+        }
     } 
 }
 
@@ -177,8 +169,8 @@ fn main() {
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(RapierDebugRenderPlugin::default())
+        .add_systems(Startup, (setup_camera, setup_player, setup_background))
         .add_systems(Update, (setup_scene_once_loaded, process_input))
-        .add_systems(Startup, (setup, setup_background))
         //.add_system(controls)
         .run();
 }
