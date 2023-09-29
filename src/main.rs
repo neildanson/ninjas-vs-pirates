@@ -2,11 +2,7 @@ use std::time::Duration;
 
 use bevy::{
     audio::{PlaybackMode, Volume, VolumeLevel},
-    prelude::*,
-    render::{
-        settings::{WgpuFeatures, WgpuSettings},
-        RenderPlugin,
-    },
+    prelude::*, window::WindowMode,
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
@@ -89,6 +85,7 @@ fn setup_camera(mut commands: Commands) {
 
 fn setup_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     let guy = asset_server.load("ninja.glb#Scene0");
+
     commands
         .spawn(SceneBundle {
             scene: guy.clone_weak(),
@@ -114,14 +111,20 @@ fn setup_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 }
 
+//https://bevy-cheatbook.github.io/3d/gltf.html#gltf-master-asset
 fn setup_scene_once_loaded(
     animations: Res<Animations>,
     mut players: Query<&mut AnimationPlayer, Added<AnimationPlayer>>,
+    // mut scenes: Query<&mut Gltf, Added<Gltf>>,
 ) {
     for mut player in &mut players {
         println!("setup_scene_once_loaded");
         player.play(animations.idle.clone_weak()).repeat();
     }
+
+    //for mut scene in &mut scenes {
+    //    scene.update_visibility(true);
+    //}
 }
 
 fn setup_background(
@@ -270,11 +273,6 @@ fn process_movement(
 }
 
 fn main() {
-    let mut wgpu_settings = WgpuSettings::default();
-    wgpu_settings
-        .features
-        .set(WgpuFeatures::VERTEX_WRITABLE_STORAGE, true);
-
     App::new()
         /*/.insert_resource(WindowDescriptor {
             title: "Bob Ross".to_string(),
@@ -282,7 +280,13 @@ fn main() {
             height: 512.,
             ..default()
         })*/
-        .add_plugins(DefaultPlugins.set(RenderPlugin { wgpu_settings }))
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                mode: WindowMode::BorderlessFullscreen,
+                ..default()
+            }),
+            ..default()
+        }))
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(RapierDebugRenderPlugin::default())
