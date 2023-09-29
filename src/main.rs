@@ -116,6 +116,8 @@ fn setup_scene_once_loaded(
         println!("setup_scene_once_loaded");
         player.play(animations.idle.clone_weak()).repeat();
     }
+
+
 }
 
 fn setup_background(
@@ -135,6 +137,13 @@ fn setup_background(
     commands.spawn(SceneBundle {
         scene: background.clone_weak(),
         transform: Transform::from_scale(Vec3::ONE * 5.0),
+        ..default()
+    });
+}
+
+fn setup_music(asset_server: Res<AssetServer>, mut commands: Commands) {
+    commands.spawn(AudioBundle {
+        source: asset_server.load("music.ogg"),
         ..default()
     });
 }
@@ -243,7 +252,7 @@ fn main() {
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(RapierDebugRenderPlugin::default())
-        .add_systems(Startup, (setup_camera, setup_player, setup_background))
+        .add_systems(Startup, (setup_camera, setup_player, setup_background, setup_music))
         .add_systems(
             Update,
             (setup_scene_once_loaded, process_input, process_animation, process_movement),
