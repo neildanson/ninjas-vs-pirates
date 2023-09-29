@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bevy::{
     audio::{PlaybackMode, Volume, VolumeLevel},
-    prelude::*, window::WindowMode,
+    prelude::*, window::{WindowMode, close_on_esc},
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
@@ -303,6 +303,6 @@ fn main() {
                 process_movement,
             ),
         )
-        //.add_system(controls)
+        .add_systems(Update, close_on_esc)
         .run();
 }
