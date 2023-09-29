@@ -1,6 +1,13 @@
 use std::time::Duration;
 
-use bevy::prelude::*;
+use bevy::{
+    audio::{PlaybackMode, Volume, VolumeLevel},
+    prelude::*,
+    render::{
+        settings::{WgpuFeatures, WgpuSettings},
+        RenderPlugin,
+    },
+};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
 
@@ -8,9 +15,8 @@ const LEFT_KEY: KeyCode = KeyCode::A;
 const RIGHT_KEY: KeyCode = KeyCode::D;
 const PUNCH_KEY: KeyCode = KeyCode::P;
 const KICK_KEY: KeyCode = KeyCode::K;
-const RUN_FORWARD_SPEED : f32 = 4.0;
-const RUN_BACKWARDS_SPEED :f32 = -2.5;
-
+const RUN_FORWARD_SPEED: f32 = 4.0;
+const RUN_BACKWARDS_SPEED: f32 = -2.5;
 
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
 enum PlayerState {
@@ -116,8 +122,6 @@ fn setup_scene_once_loaded(
         println!("setup_scene_once_loaded");
         player.play(animations.idle.clone_weak()).repeat();
     }
-
-
 }
 
 fn setup_background(
@@ -144,6 +148,20 @@ fn setup_background(
 fn setup_music(asset_server: Res<AssetServer>, mut commands: Commands) {
     commands.spawn(AudioBundle {
         source: asset_server.load("music.ogg"),
+        settings: PlaybackSettings {
+            mode: PlaybackMode::Loop,
+            ..Default::default()
+        },
+        ..default()
+    });
+
+    commands.spawn(AudioBundle {
+        source: asset_server.load("begin.ogg"),
+        settings: PlaybackSettings {
+            mode: PlaybackMode::Despawn,
+            volume: Volume::Relative(VolumeLevel::new(0.3)),
+            ..Default::default()
+        },
         ..default()
     });
 }
@@ -181,7 +199,7 @@ fn process_input(keys: Res<Input<KeyCode>>, time: Res<Time>, mut players: Query<
 fn process_animation(
     animations: Res<Animations>,
     mut animation_players: Query<(&Parent, &mut AnimationPlayer)>,
-    parent_query: Query<&Parent>, 
+    parent_query: Query<&Parent>,
     mut player: Query<&mut Player>,
 ) {
     let transition_duration = Duration::from_secs_f32(0.2);
@@ -190,7 +208,9 @@ fn process_animation(
         let parent_entity = parent_query.get(parent.get()).unwrap();
         let mut player = player.get_mut(parent_entity.get()).unwrap();
 
-        if player.player_state == player.old_player_state || player.current_animation_timer.is_some(){
+        if player.player_state == player.old_player_state
+            || player.current_animation_timer.is_some()
+        {
             continue;
         }
 
@@ -205,10 +225,11 @@ fn process_animation(
                     .play_with_transition(animations.punch.clone(), transition_duration)
                     .set_speed(1.5);
                 player.current_animation_timer = Some(Timer::from_seconds(0.6, TimerMode::Once));
-            
             }
             PlayerState::Kicking => {
-                animation_player.play_with_transition(animations.kick.clone(), transition_duration).set_speed(1.5);
+                animation_player
+                    .play_with_transition(animations.kick.clone(), transition_duration)
+                    .set_speed(1.5);
                 player.current_animation_timer = Some(Timer::from_seconds(1.0, TimerMode::Once))
             }
             PlayerState::Running => {
@@ -225,22 +246,35 @@ fn process_animation(
     }
 }
 
-fn process_movement(time: Res<Time>,
+fn process_movement(
+    time: Res<Time>,
     mut player: Query<(&mut KinematicCharacterController, &Player)>,
-    ) {
-        for (mut controller, player) in player.iter_mut() {
-            if player.player_state == PlayerState::Running {
-                controller.translation = Some(Vec3::new(RUN_FORWARD_SPEED * time.delta_seconds(), 0.0, 0.0));
-            } else if player.player_state == PlayerState::RunningBackwards {
-                controller.translation = Some(Vec3::new(RUN_BACKWARDS_SPEED * time.delta_seconds(), 0.0, 0.0));
-            } else {
-                controller.translation = None;
-            }
+) {
+    for (mut controller, player) in player.iter_mut() {
+        if player.player_state == PlayerState::Running {
+            controller.translation = Some(Vec3::new(
+                RUN_FORWARD_SPEED * time.delta_seconds(),
+                0.0,
+                0.0,
+            ));
+        } else if player.player_state == PlayerState::RunningBackwards {
+            controller.translation = Some(Vec3::new(
+                RUN_BACKWARDS_SPEED * time.delta_seconds(),
+                0.0,
+                0.0,
+            ));
+        } else {
+            controller.translation = None;
         }
-        
+    }
 }
 
 fn main() {
+    let mut wgpu_settings = WgpuSettings::default();
+    wgpu_settings
+        .features
+        .set(WgpuFeatures::VERTEX_WRITABLE_STORAGE, true);
+
     App::new()
         /*/.insert_resource(WindowDescriptor {
             title: "Bob Ross".to_string(),
@@ -248,14 +282,22 @@ fn main() {
             height: 512.,
             ..default()
         })*/
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(RenderPlugin { wgpu_settings }))
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(RapierDebugRenderPlugin::default())
-        .add_systems(Startup, (setup_camera, setup_player, setup_background, setup_music))
+        .add_systems(
+            Startup,
+            (setup_camera, setup_player, setup_background, setup_music),
+        )
         .add_systems(
             Update,
-            (setup_scene_once_loaded, process_input, process_animation, process_movement),
+            (
+                setup_scene_once_loaded,
+                process_input,
+                process_animation,
+                process_movement,
+            ),
         )
         //.add_system(controls)
         .run();
