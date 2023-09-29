@@ -175,7 +175,7 @@ fn process_animation(
     parent_query: Query<&Parent>, 
     mut player: Query<&mut Player>,
 ) {
-    let transition_duration = Duration::from_secs_f32(0.1);
+    let transition_duration = Duration::from_secs_f32(0.2);
     for (parent, mut animation_player) in animation_players.iter_mut() {
         //Should make this a function
         let parent_entity = parent_query.get(parent.get()).unwrap();
