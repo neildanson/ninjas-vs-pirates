@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use bevy::{
     audio::{PlaybackMode, Volume, VolumeLevel},
-    prelude::*, window::{WindowMode, close_on_esc},
+    prelude::*,
+    window::{close_on_esc, WindowMode},
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
@@ -261,29 +262,19 @@ fn process_animation(
     }
 }
 
-fn process_movement(
-    time: Res<Time>,
-    mut player: Query<(&mut Transform, &Player)>,
-) {
+fn process_movement(time: Res<Time>, mut player: Query<(&mut Transform, &Player)>) {
     for (mut controller, player) in player.iter_mut() {
         if player.player_state == PlayerState::Running {
-            controller.translation += Vec3::new(
-                RUN_FORWARD_SPEED * time.delta_seconds(),
-                0.0,
-                0.0,
-            );
+            controller.translation += Vec3::new(RUN_FORWARD_SPEED * time.delta_seconds(), 0.0, 0.0);
         } else if player.player_state == PlayerState::RunningBackwards {
-            controller.translation += Vec3::new(
-                RUN_BACKWARDS_SPEED * time.delta_seconds(),
-                0.0,
-                0.0,
-            );
-        } 
+            controller.translation +=
+                Vec3::new(RUN_BACKWARDS_SPEED * time.delta_seconds(), 0.0, 0.0);
+        }
     }
 }
 
 fn calculate_collision_points(
-    mut is_run : Local<bool>,
+    mut is_run: Local<bool>,
     mut commands: Commands,
     players: Query<Entity, With<Player>>,
     children: Query<&Children>,
@@ -297,33 +288,53 @@ fn calculate_collision_points(
             if let Ok((name, _transform)) = transforms.get(entity) {
                 *is_run = true;
                 if name.as_str().starts_with("hand") || name.as_str().starts_with("foot") {
-                    println!("Entity: {:?}", name);
                     commands
-                    .entity(entity).
-                        insert(RigidBody::KinematicPositionBased)
+                        .entity(entity)
+                        .insert(RigidBody::KinematicPositionBased)
                         .insert(Collider::ball(0.2))
-                        .insert(ColliderDebugColor(Color::GREEN));
+                        .insert(ActiveEvents::COLLISION_EVENTS)
+                        .insert(ColliderDebugColor(Color::GREEN))
+                        .insert(
+                            ActiveCollisionTypes::default()
+                                | ActiveCollisionTypes::KINEMATIC_KINEMATIC,
+                        );
                 }
 
                 if name.as_str().starts_with("eyes") {
-                    println!("Entity: {:?}", name);
                     commands
-                    .entity(entity).
-                        insert(RigidBody::KinematicPositionBased)
+                        .entity(entity)
+                        .insert(RigidBody::KinematicPositionBased)
                         .insert(Collider::ball(0.4))
-                        .insert(ColliderDebugColor(Color::RED));
+                        .insert(ActiveEvents::COLLISION_EVENTS)
+                        .insert(ColliderDebugColor(Color::RED))
+                        .insert(
+                            ActiveCollisionTypes::default()
+                                | ActiveCollisionTypes::KINEMATIC_KINEMATIC,
+                        );
                 }
 
-                /*if name.as_str().starts_with("spine_02") {
-                    println!("Entity: {:?}", name);
+                if name.as_str().starts_with("spine_02") {
                     commands
-                    .entity(entity).
-                        insert(RigidBody::KinematicPositionBased)
+                        .entity(entity)
+                        .insert(RigidBody::KinematicPositionBased)
                         .insert(Collider::ball(0.4))
-                        .insert(ColliderDebugColor(Color::RED));
-                }*/
+                        .insert(ActiveEvents::COLLISION_EVENTS)
+                        .insert(ColliderDebugColor(Color::RED))
+                        .insert(
+                            ActiveCollisionTypes::default()
+                                | ActiveCollisionTypes::KINEMATIC_KINEMATIC,
+                        );
+                }
             }
         }
+    }
+}
+
+fn display_events(
+    mut collision_events: EventReader<CollisionEvent>,
+) {
+    for collision_event in collision_events.iter() {
+        println!("Received collision event: {:?}", collision_event);
     }
 }
 
@@ -356,7 +367,8 @@ fn main() {
                 process_input,
                 process_animation,
                 process_movement,
-                calculate_collision_points
+                calculate_collision_points,
+                display_events,
             ),
         )
         .add_systems(Update, close_on_esc)
