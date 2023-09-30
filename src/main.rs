@@ -92,15 +92,7 @@ fn setup_player(mut commands: Commands, asset_server: Res<AssetServer>) {
             transform: Transform::from_rotation(Quat::from_rotation_y(std::f32::consts::PI / 2.0)),
             ..default()
         })
-        .insert(Player::default())
-        .insert(RigidBody::Fixed)
-        .insert(Collider::cuboid(1.0, 2.0, 1.0))
-        .insert(ColliderDebugColor(Color::GREEN))
-        .insert(KinematicCharacterController {
-            // The character offset is set to 0.01.
-            offset: CharacterLength::Absolute(0.01),
-            ..default()
-        });
+        .insert(Player::default());
 
     commands.insert_resource(Animations {
         idle: asset_server.load("ninja.glb#Animation0"),
@@ -292,6 +284,51 @@ fn process_movement(
     }
 }
 
+fn calculate_collision_points(
+    mut is_run : Local<bool>,
+    mut commands: Commands,
+    players: Query<Entity, With<Player>>,
+    children: Query<&Children>,
+    transforms: Query<(&Name, &Transform)>,
+) {
+    if *is_run {
+        return;
+    }
+    for player in &players {
+        for entity in children.iter_descendants(player) {
+            if let Ok((name, _transform)) = transforms.get(entity) {
+                *is_run = true;
+                if name.as_str().starts_with("hand") || name.as_str().starts_with("foot") {
+                    println!("Entity: {:?}", name);
+                    commands
+                    .entity(entity).
+                        insert(RigidBody::KinematicPositionBased)
+                        .insert(Collider::ball(0.2))
+                        .insert(ColliderDebugColor(Color::GREEN));
+                }
+
+                if name.as_str().starts_with("eyes") {
+                    println!("Entity: {:?}", name);
+                    commands
+                    .entity(entity).
+                        insert(RigidBody::KinematicPositionBased)
+                        .insert(Collider::ball(0.4))
+                        .insert(ColliderDebugColor(Color::RED));
+                }
+
+                if name.as_str().starts_with("spine_02") {
+                    println!("Entity: {:?}", name);
+                    commands
+                    .entity(entity).
+                        insert(RigidBody::KinematicPositionBased)
+                        .insert(Collider::ball(0.4))
+                        .insert(ColliderDebugColor(Color::RED));
+                }
+            }
+        }
+    }
+}
+
 fn main() {
     App::new()
         /*/.insert_resource(WindowDescriptor {
@@ -321,6 +358,7 @@ fn main() {
                 process_input,
                 process_animation,
                 process_movement,
+                calculate_collision_points
             ),
         )
         .add_systems(Update, close_on_esc)
