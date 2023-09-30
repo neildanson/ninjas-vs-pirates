@@ -263,24 +263,22 @@ fn process_animation(
 
 fn process_movement(
     time: Res<Time>,
-    mut player: Query<(&mut KinematicCharacterController, &Player)>,
+    mut player: Query<(&mut Transform, &Player)>,
 ) {
     for (mut controller, player) in player.iter_mut() {
         if player.player_state == PlayerState::Running {
-            controller.translation = Some(Vec3::new(
+            controller.translation += Vec3::new(
                 RUN_FORWARD_SPEED * time.delta_seconds(),
                 0.0,
                 0.0,
-            ));
+            );
         } else if player.player_state == PlayerState::RunningBackwards {
-            controller.translation = Some(Vec3::new(
+            controller.translation += Vec3::new(
                 RUN_BACKWARDS_SPEED * time.delta_seconds(),
                 0.0,
                 0.0,
-            ));
-        } else {
-            controller.translation = None;
-        }
+            );
+        } 
     }
 }
 
@@ -316,14 +314,14 @@ fn calculate_collision_points(
                         .insert(ColliderDebugColor(Color::RED));
                 }
 
-                if name.as_str().starts_with("spine_02") {
+                /*if name.as_str().starts_with("spine_02") {
                     println!("Entity: {:?}", name);
                     commands
                     .entity(entity).
                         insert(RigidBody::KinematicPositionBased)
                         .insert(Collider::ball(0.4))
                         .insert(ColliderDebugColor(Color::RED));
-                }
+                }*/
             }
         }
     }
