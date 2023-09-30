@@ -200,6 +200,8 @@ fn process_input(keys: Res<Input<KeyCode>>, time: Res<Time>, mut players: Query<
 }
 
 fn process_animation(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
     animations: Res<Animations>,
     mut animation_players: Query<(&Parent, &mut AnimationPlayer)>,
     parent_query: Query<&Parent>,
@@ -228,12 +230,30 @@ fn process_animation(
                     .play_with_transition(animations.punch.clone(), transition_duration)
                     .set_speed(1.5);
                 player.current_animation_timer = Some(Timer::from_seconds(0.6, TimerMode::Once));
+                commands.spawn(AudioBundle {
+                    source: asset_server.load("punch.ogg"),
+                    settings: PlaybackSettings {
+                        mode: PlaybackMode::Despawn,
+                        volume: Volume::Relative(VolumeLevel::new(0.3)),
+                        ..Default::default()
+                    },
+                    ..default()
+                });
             }
             PlayerState::Kicking => {
                 animation_player
                     .play_with_transition(animations.kick.clone(), transition_duration)
                     .set_speed(1.5);
-                player.current_animation_timer = Some(Timer::from_seconds(1.0, TimerMode::Once))
+                player.current_animation_timer = Some(Timer::from_seconds(1.0, TimerMode::Once));
+                commands.spawn(AudioBundle {
+                    source: asset_server.load("kick.ogg"),
+                    settings: PlaybackSettings {
+                        mode: PlaybackMode::Despawn,
+                        volume: Volume::Relative(VolumeLevel::new(0.3)),
+                        ..Default::default()
+                    },
+                    ..default()
+                });
             }
             PlayerState::Running => {
                 animation_player
