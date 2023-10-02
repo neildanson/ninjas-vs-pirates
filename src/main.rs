@@ -292,7 +292,7 @@ fn calculate_collision_points(
                     commands
                         .entity(entity)
                         .insert(RigidBody::KinematicPositionBased)
-                        .insert(Collider::ball(0.2))
+                        .insert(Collider::ball(0.15))
                         .insert(CollisionGroups::new(Group::from_bits_truncate(2), Group::all()))
                         .insert(ActiveEvents::COLLISION_EVENTS)
                         .insert(ColliderDebugColor(Color::GREEN))
@@ -306,7 +306,7 @@ fn calculate_collision_points(
                     commands
                         .entity(entity)
                         .insert(RigidBody::KinematicPositionBased)
-                        .insert(Collider::ball(0.4))
+                        .insert(Collider::ball(0.3))
                         .insert(ActiveEvents::COLLISION_EVENTS)
                         .insert(CollisionGroups::new(Group::from_bits_truncate(1), Group::all()))
                         .insert(ColliderDebugColor(Color::RED))
@@ -323,6 +323,7 @@ fn calculate_collision_points(
                         .insert(Collider::ball(0.4))
                         .insert(ActiveEvents::COLLISION_EVENTS)
                         .insert(ColliderDebugColor(Color::RED))
+                        .insert(CollisionGroups::new(Group::from_bits_truncate(3), Group::all()))
                         .insert(
                             ActiveCollisionTypes::default()
                                 | ActiveCollisionTypes::KINEMATIC_KINEMATIC,
@@ -337,10 +338,14 @@ fn display_events(
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
     mut collision_events: EventReader<CollisionEvent>,
+    names: Query<&Name>
 ) {
     for collision_event in collision_events.iter() {
         match collision_event {
-            CollisionEvent::Started(_entity1, _entity2, _flags) => {
+            CollisionEvent::Started(entity1, entity2, _flags) => {
+                let name1 = names.get(*entity1).unwrap();
+                let name2 = names.get(*entity2).unwrap();
+                println!("Collision started: {:?} {:?}", name1, name2);
                 spawn_particles(&mut commands, &mut effects, Vec3::ZERO);
                 println!("Received collision event: {:?}", collision_event);
             }
