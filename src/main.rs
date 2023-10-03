@@ -16,6 +16,11 @@ const KICK_KEY: KeyCode = KeyCode::K;
 const RUN_FORWARD_SPEED: f32 = 4.0;
 const RUN_BACKWARDS_SPEED: f32 = -2.5;
 
+const HANDS_COLLISION_GROUP: u32 = 1;
+const FEET_COLLISION_GROUP: u32 = 2;
+const BODY_COLLISION_GROUP: u32 = 3;
+const HEAD_COLLISION_GROUP: u32 = 4;
+
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
 enum PlayerState {
     #[default]
@@ -274,6 +279,26 @@ fn process_movement(time: Res<Time>, mut player: Query<(&mut Transform, &Player)
     }
 }
 
+fn add_collision_point(
+    commands: &mut Commands,
+    entity: Entity,
+    collision_group: u32,
+    debug_color: Color,
+    radius: f32,
+) {
+    commands
+        .entity(entity)
+        .insert(RigidBody::KinematicPositionBased)
+        .insert(Collider::ball(radius))
+        .insert(ActiveEvents::COLLISION_EVENTS)
+        .insert(ColliderDebugColor(debug_color))
+        .insert(CollisionGroups::new(
+            Group::from_bits_truncate(collision_group),
+            Group::all(),
+        ))
+        .insert(ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_KINEMATIC);
+}
+
 fn calculate_collision_points(
     mut is_run: Local<bool>,
     mut commands: Commands,
@@ -288,46 +313,20 @@ fn calculate_collision_points(
         for entity in children.iter_descendants(player) {
             if let Ok((name, _transform)) = transforms.get(entity) {
                 *is_run = true;
-                if name.as_str().starts_with("hand") || name.as_str().starts_with("foot") {
-                    commands
-                        .entity(entity)
-                        .insert(RigidBody::KinematicPositionBased)
-                        .insert(Collider::ball(0.15))
-                        .insert(CollisionGroups::new(Group::from_bits_truncate(2), Group::all()))
-                        .insert(ActiveEvents::COLLISION_EVENTS)
-                        .insert(ColliderDebugColor(Color::GREEN))
-                        .insert(
-                            ActiveCollisionTypes::default()
-                                | ActiveCollisionTypes::KINEMATIC_KINEMATIC,
-                        );
+                if name.as_str().starts_with("hand") {
+                    add_collision_point(&mut commands, entity, HANDS_COLLISION_GROUP, Color::BLUE, 0.15);
+                }
+
+                if name.as_str().starts_with("foot")  {
+                    add_collision_point(&mut commands, entity, FEET_COLLISION_GROUP, Color::BLUE, 0.15);
                 }
 
                 if name.as_str().starts_with("eyes") {
-                    commands
-                        .entity(entity)
-                        .insert(RigidBody::KinematicPositionBased)
-                        .insert(Collider::ball(0.3))
-                        .insert(ActiveEvents::COLLISION_EVENTS)
-                        .insert(CollisionGroups::new(Group::from_bits_truncate(1), Group::all()))
-                        .insert(ColliderDebugColor(Color::RED))
-                        .insert(
-                            ActiveCollisionTypes::default()
-                                | ActiveCollisionTypes::KINEMATIC_KINEMATIC,
-                        );
+                    add_collision_point(&mut commands, entity, HEAD_COLLISION_GROUP, Color::RED, 0.3);
                 }
 
                 if name.as_str().starts_with("spine_02") {
-                    commands
-                        .entity(entity)
-                        .insert(RigidBody::KinematicPositionBased)
-                        .insert(Collider::ball(0.4))
-                        .insert(ActiveEvents::COLLISION_EVENTS)
-                        .insert(ColliderDebugColor(Color::RED))
-                        .insert(CollisionGroups::new(Group::from_bits_truncate(3), Group::all()))
-                        .insert(
-                            ActiveCollisionTypes::default()
-                                | ActiveCollisionTypes::KINEMATIC_KINEMATIC,
-                        );
+                    add_collision_point(&mut commands, entity, BODY_COLLISION_GROUP, Color::RED, 0.4);
                 }
             }
         }
@@ -338,7 +337,7 @@ fn display_events(
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
     mut collision_events: EventReader<CollisionEvent>,
-    names: Query<&Name>
+    names: Query<&Name>,
 ) {
     for collision_event in collision_events.iter() {
         match collision_event {
