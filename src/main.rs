@@ -6,7 +6,7 @@ use bevy::{
     window::{close_on_esc, WindowMode},
 };
 use bevy_hanabi::prelude::*;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
+//use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
 
 const LEFT_KEY: KeyCode = KeyCode::A;
@@ -18,8 +18,8 @@ const RUN_BACKWARDS_SPEED: f32 = -2.5;
 
 const HANDS_COLLISION_GROUP: u32 = 1;
 const FEET_COLLISION_GROUP: u32 = 2;
-const BODY_COLLISION_GROUP: u32 = 3;
-const HEAD_COLLISION_GROUP: u32 = 4;
+const BODY_COLLISION_GROUP: u32 = 4;
+const HEAD_COLLISION_GROUP: u32 = 8;
 
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
 enum PlayerState {
@@ -90,16 +90,34 @@ fn setup_camera(mut commands: Commands) {
     });
 }
 
-fn setup_player(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup_ninja(mut commands: Commands, asset_server: Res<AssetServer>) {
     let guy = asset_server.load("ninja.glb#Scene0");
 
     commands
         .spawn(SceneBundle {
             scene: guy.clone_weak(),
-            transform: Transform::from_rotation(Quat::from_rotation_y(std::f32::consts::PI / 2.0)),
+            transform: Transform::from_rotation(Quat::from_rotation_y(std::f32::consts::PI / 2.0)).with_translation(Vec3::new(-3.0,0.0,0.0)),
             ..default()
         })
         .insert(Player::default());
+
+    commands.insert_resource(Animations {
+        idle: asset_server.load("ninja.glb#Animation0"),
+        kick: asset_server.load("ninja.glb#Animation1"),
+        punch: asset_server.load("ninja.glb#Animation2"),
+        run_forwards: asset_server.load("ninja.glb#Animation3"),
+        walk_backwards: asset_server.load("ninja.glb#Animation4"),
+    });
+}
+
+fn setup_pirate(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let guy = asset_server.load("pirate.glb#Scene0");
+
+    commands.spawn(SceneBundle {
+        scene: guy.clone_weak(),
+        transform: Transform::from_rotation(Quat::from_rotation_y(-std::f32::consts::PI / 2.0)).with_translation(Vec3::new(3.0,0.0,0.0)),
+        ..default()
+    });
 
     commands.insert_resource(Animations {
         idle: asset_server.load("ninja.glb#Animation0"),
@@ -117,13 +135,8 @@ fn setup_scene_once_loaded(
     // mut scenes: Query<&mut Gltf, Added<Gltf>>,
 ) {
     for mut player in &mut players {
-        println!("setup_scene_once_loaded");
         player.play(animations.idle.clone_weak()).repeat();
     }
-
-    //for mut scene in &mut scenes {
-    //    scene.update_visibility(true);
-    //}
 }
 
 fn setup_background(
@@ -179,7 +192,6 @@ fn process_input(keys: Res<Input<KeyCode>>, time: Res<Time>, mut players: Query<
                 .finished()
             {
                 player.current_animation_timer = None;
-                println!("Animation finished");
             } else {
                 continue;
             }
@@ -210,60 +222,72 @@ fn process_animation(
     for (parent, mut animation_player) in animation_players.iter_mut() {
         //Should make this a function
         let parent_entity = parent_query.get(parent.get()).unwrap();
-        let mut player = player.get_mut(parent_entity.get()).unwrap();
+        let player = player.get_mut(parent_entity.get());
+        match player {
+            Ok(mut player) => {
+                if player.player_state == player.old_player_state
+                    || player.current_animation_timer.is_some()
+                {
+                    continue;
+                }
 
-        if player.player_state == player.old_player_state
-            || player.current_animation_timer.is_some()
-        {
-            continue;
-        }
-
-        match player.player_state {
-            PlayerState::Idle => {
-                animation_player
-                    .play_with_transition(animations.idle.clone(), transition_duration)
-                    .repeat();
+                match player.player_state {
+                    PlayerState::Idle => {
+                        animation_player
+                            .play_with_transition(animations.idle.clone(), transition_duration)
+                            .repeat();
+                    }
+                    PlayerState::Punching => {
+                        animation_player
+                            .play_with_transition(animations.punch.clone(), transition_duration)
+                            .set_speed(1.5);
+                        player.current_animation_timer =
+                            Some(Timer::from_seconds(0.6, TimerMode::Once));
+                        commands.spawn(AudioBundle {
+                            source: asset_server.load("punch.ogg"),
+                            settings: PlaybackSettings {
+                                mode: PlaybackMode::Despawn,
+                                volume: Volume::Relative(VolumeLevel::new(0.3)),
+                                ..Default::default()
+                            },
+                            ..default()
+                        });
+                    }
+                    PlayerState::Kicking => {
+                        animation_player
+                            .play_with_transition(animations.kick.clone(), transition_duration)
+                            .set_speed(1.5);
+                        player.current_animation_timer =
+                            Some(Timer::from_seconds(1.0, TimerMode::Once));
+                        commands.spawn(AudioBundle {
+                            source: asset_server.load("kick.ogg"),
+                            settings: PlaybackSettings {
+                                mode: PlaybackMode::Despawn,
+                                volume: Volume::Relative(VolumeLevel::new(0.3)),
+                                ..Default::default()
+                            },
+                            ..default()
+                        });
+                    }
+                    PlayerState::Running => {
+                        animation_player
+                            .play_with_transition(
+                                animations.run_forwards.clone(),
+                                transition_duration,
+                            )
+                            .repeat();
+                    }
+                    PlayerState::RunningBackwards => {
+                        animation_player
+                            .play_with_transition(
+                                animations.walk_backwards.clone(),
+                                transition_duration,
+                            )
+                            .repeat();
+                    }
+                }
             }
-            PlayerState::Punching => {
-                animation_player
-                    .play_with_transition(animations.punch.clone(), transition_duration)
-                    .set_speed(1.5);
-                player.current_animation_timer = Some(Timer::from_seconds(0.6, TimerMode::Once));
-                commands.spawn(AudioBundle {
-                    source: asset_server.load("punch.ogg"),
-                    settings: PlaybackSettings {
-                        mode: PlaybackMode::Despawn,
-                        volume: Volume::Relative(VolumeLevel::new(0.3)),
-                        ..Default::default()
-                    },
-                    ..default()
-                });
-            }
-            PlayerState::Kicking => {
-                animation_player
-                    .play_with_transition(animations.kick.clone(), transition_duration)
-                    .set_speed(1.5);
-                player.current_animation_timer = Some(Timer::from_seconds(1.0, TimerMode::Once));
-                commands.spawn(AudioBundle {
-                    source: asset_server.load("kick.ogg"),
-                    settings: PlaybackSettings {
-                        mode: PlaybackMode::Despawn,
-                        volume: Volume::Relative(VolumeLevel::new(0.3)),
-                        ..Default::default()
-                    },
-                    ..default()
-                });
-            }
-            PlayerState::Running => {
-                animation_player
-                    .play_with_transition(animations.run_forwards.clone(), transition_duration)
-                    .repeat();
-            }
-            PlayerState::RunningBackwards => {
-                animation_player
-                    .play_with_transition(animations.walk_backwards.clone(), transition_duration)
-                    .repeat();
-            }
+            _ => {}
         }
     }
 }
@@ -294,7 +318,7 @@ fn add_collision_point(
         .insert(ColliderDebugColor(debug_color))
         .insert(CollisionGroups::new(
             Group::from_bits_truncate(collision_group),
-            Group::all(),
+            Group::from_bits_truncate(collision_group),
         ))
         .insert(ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_KINEMATIC);
 }
@@ -314,19 +338,43 @@ fn calculate_collision_points(
             if let Ok((name, _transform)) = transforms.get(entity) {
                 *is_run = true;
                 if name.as_str().starts_with("hand") {
-                    add_collision_point(&mut commands, entity, HANDS_COLLISION_GROUP, Color::BLUE, 0.15);
+                    add_collision_point(
+                        &mut commands,
+                        entity,
+                        HANDS_COLLISION_GROUP,
+                        Color::BLUE,
+                        0.15,
+                    );
                 }
 
-                if name.as_str().starts_with("foot")  {
-                    add_collision_point(&mut commands, entity, FEET_COLLISION_GROUP, Color::BLUE, 0.15);
+                if name.as_str().starts_with("foot") {
+                    add_collision_point(
+                        &mut commands,
+                        entity,
+                        FEET_COLLISION_GROUP,
+                        Color::BLUE,
+                        0.15,
+                    );
                 }
 
                 if name.as_str().starts_with("eyes") {
-                    add_collision_point(&mut commands, entity, HEAD_COLLISION_GROUP, Color::RED, 0.3);
+                    add_collision_point(
+                        &mut commands,
+                        entity,
+                        HEAD_COLLISION_GROUP,
+                        Color::RED,
+                        0.3,
+                    );
                 }
 
                 if name.as_str().starts_with("spine_02") {
-                    add_collision_point(&mut commands, entity, BODY_COLLISION_GROUP, Color::RED, 0.4);
+                    add_collision_point(
+                        &mut commands,
+                        entity,
+                        BODY_COLLISION_GROUP,
+                        Color::RED,
+                        0.4,
+                    );
                 }
             }
         }
@@ -445,12 +493,18 @@ fn main() {
             ..default()
         }))
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugins(WorldInspectorPlugin::new()) //If debug
+        //.add_plugins(WorldInspectorPlugin::new()) //If debug
         .add_plugins(HanabiPlugin) //If debug
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(
             Startup,
-            (setup_camera, setup_player, setup_background, setup_music),
+            (
+                setup_camera,
+                setup_ninja,
+                setup_pirate,
+                setup_background,
+                setup_music,
+            ),
         )
         .add_systems(
             Update,
