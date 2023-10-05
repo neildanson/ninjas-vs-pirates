@@ -22,7 +22,7 @@ const BODY_COLLISION_GROUP: u32 = 4;
 const HEAD_COLLISION_GROUP: u32 = 8;
 
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
-enum PlayerState {
+enum AnimationState {
     #[default]
     Idle,
     Punching,
@@ -31,20 +31,26 @@ enum PlayerState {
     RunningBackwards,
 }
 
+#[derive(Component)]
+struct Player;
+
 #[derive(Component, Default)]
-struct Player {
+struct Enemy;
+
+#[derive(Component, Default)]
+struct CharacterState {
+    player_state: AnimationState,
+    old_player_state: AnimationState,
     current_animation_timer: Option<Timer>,
-    player_state: PlayerState,
-    old_player_state: PlayerState,
 }
 
-impl Player {
-    fn update_player_state(&mut self, new_state: PlayerState) {
+impl CharacterState {
+    fn update_player_state(&mut self, new_state: AnimationState) {
         self.old_player_state = self.player_state;
         self.player_state = new_state;
         if self.old_player_state != self.player_state {
-            println!("Old Player state: {:?}", self.old_player_state);
-            println!("Player state: {:?}", self.player_state);
+            //println!("Old Player state: {:?}", self.old_player_state);
+            //println!("Player state: {:?}", self.player_state);
         }
     }
 }
@@ -99,7 +105,8 @@ fn setup_ninja(mut commands: Commands, asset_server: Res<AssetServer>) {
             transform: Transform::from_rotation(Quat::from_rotation_y(std::f32::consts::PI / 2.0)).with_translation(Vec3::new(-3.0,0.0,0.0)),
             ..default()
         })
-        .insert(Player::default());
+        .insert(Player)
+        .insert(CharacterState::default());
 
     commands.insert_resource(Animations {
         idle: asset_server.load("ninja.glb#Animation0"),
@@ -115,17 +122,11 @@ fn setup_pirate(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn(SceneBundle {
         scene: guy.clone_weak(),
-        transform: Transform::from_rotation(Quat::from_rotation_y(-std::f32::consts::PI / 2.0)).with_translation(Vec3::new(3.0,0.0,0.0)),
+        transform: Transform::from_rotation(Quat::from_rotation_y(-std::f32::consts::PI / 2.0)).with_translation(Vec3::new(3.0,0.0,0.0)).with_scale(Vec3::new(1.0, 1.0, 1.0)),
         ..default()
-    });
-
-    commands.insert_resource(Animations {
-        idle: asset_server.load("ninja.glb#Animation0"),
-        kick: asset_server.load("ninja.glb#Animation1"),
-        punch: asset_server.load("ninja.glb#Animation2"),
-        run_forwards: asset_server.load("ninja.glb#Animation3"),
-        walk_backwards: asset_server.load("ninja.glb#Animation4"),
-    });
+    })
+    .insert(Enemy)
+    .insert(CharacterState::default());
 }
 
 fn setup_scene_once_loaded(
@@ -143,12 +144,6 @@ fn setup_background(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // plane
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(shape::Plane::from_size(100.0).into()),
-        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
-        ..default()
-    });
 
     let background = asset_server.load("background.glb#Scene0");
     commands.spawn(SceneBundle {
@@ -179,7 +174,7 @@ fn setup_music(asset_server: Res<AssetServer>, mut commands: Commands) {
     });
 }
 
-fn process_input(keys: Res<Input<KeyCode>>, time: Res<Time>, mut players: Query<&mut Player>) {
+fn process_input(keys: Res<Input<KeyCode>>, time: Res<Time>, mut players: Query<&mut CharacterState, With<Player>>) {
     for mut player in players.iter_mut() {
         if player.current_animation_timer.is_some() {
             if player
@@ -194,15 +189,15 @@ fn process_input(keys: Res<Input<KeyCode>>, time: Res<Time>, mut players: Query<
                 continue;
             }
         }
-        let mut new_state = PlayerState::Idle;
+        let mut new_state = AnimationState::Idle;
         if keys.just_pressed(PUNCH_KEY) {
-            new_state = PlayerState::Punching;
+            new_state = AnimationState::Punching;
         } else if keys.just_pressed(KICK_KEY) {
-            new_state = PlayerState::Kicking;
+            new_state = AnimationState::Kicking;
         } else if keys.pressed(RIGHT_KEY) && !keys.pressed(LEFT_KEY) {
-            new_state = PlayerState::Running;
+            new_state = AnimationState::Running;
         } else if keys.pressed(LEFT_KEY) && !keys.pressed(RIGHT_KEY) {
-            new_state = PlayerState::RunningBackwards;
+            new_state = AnimationState::RunningBackwards;
         }
         player.update_player_state(new_state);
     }
@@ -214,32 +209,32 @@ fn process_animation(
     animations: Res<Animations>,
     mut animation_players: Query<(&Parent, &mut AnimationPlayer)>,
     parent_query: Query<&Parent>,
-    mut player: Query<&mut Player>,
+    mut character_state: Query<&mut CharacterState>,
 ) {
     let transition_duration = Duration::from_secs_f32(0.2);
     for (parent, mut animation_player) in animation_players.iter_mut() {
         //Should make this a function
         let parent_entity = parent_query.get(parent.get()).unwrap();
-        let player = player.get_mut(parent_entity.get());
-        match player {
-            Ok(mut player) => {
-                if player.player_state == player.old_player_state
-                    || player.current_animation_timer.is_some()
+        let character_state = character_state.get_mut(parent_entity.get());
+        match character_state {
+            Ok(mut character_state) => {
+                if character_state.player_state == character_state.old_player_state
+                    || character_state.current_animation_timer.is_some()
                 {
                     continue;
                 }
 
-                match player.player_state {
-                    PlayerState::Idle => {
+                match character_state.player_state {
+                    AnimationState::Idle => {
                         animation_player
                             .play_with_transition(animations.idle.clone(), transition_duration)
                             .repeat();
                     }
-                    PlayerState::Punching => {
+                    AnimationState::Punching => {
                         animation_player
                             .play_with_transition(animations.punch.clone(), transition_duration)
                             .set_speed(1.5);
-                        player.current_animation_timer =
+                        character_state.current_animation_timer =
                             Some(Timer::from_seconds(0.6, TimerMode::Once));
                         commands.spawn(AudioBundle {
                             source: asset_server.load("punch.ogg"),
@@ -251,11 +246,11 @@ fn process_animation(
                             ..default()
                         });
                     }
-                    PlayerState::Kicking => {
+                    AnimationState::Kicking => {
                         animation_player
                             .play_with_transition(animations.kick.clone(), transition_duration)
                             .set_speed(1.5);
-                        player.current_animation_timer =
+                        character_state.current_animation_timer =
                             Some(Timer::from_seconds(1.0, TimerMode::Once));
                         commands.spawn(AudioBundle {
                             source: asset_server.load("kick.ogg"),
@@ -267,7 +262,7 @@ fn process_animation(
                             ..default()
                         });
                     }
-                    PlayerState::Running => {
+                    AnimationState::Running => {
                         animation_player
                             .play_with_transition(
                                 animations.run_forwards.clone(),
@@ -275,7 +270,7 @@ fn process_animation(
                             )
                             .repeat();
                     }
-                    PlayerState::RunningBackwards => {
+                    AnimationState::RunningBackwards => {
                         animation_player
                             .play_with_transition(
                                 animations.walk_backwards.clone(),
@@ -290,11 +285,11 @@ fn process_animation(
     }
 }
 
-fn process_movement(time: Res<Time>, mut player: Query<(&mut Transform, &Player)>) {
+fn process_movement(time: Res<Time>, mut player: Query<(&mut Transform, &CharacterState)>) {
     for (mut controller, player) in player.iter_mut() {
-        if player.player_state == PlayerState::Running {
+        if player.player_state == AnimationState::Running {
             controller.translation += Vec3::new(RUN_FORWARD_SPEED * time.delta_seconds(), 0.0, 0.0);
-        } else if player.player_state == PlayerState::RunningBackwards {
+        } else if player.player_state == AnimationState::RunningBackwards {
             controller.translation +=
                 Vec3::new(RUN_BACKWARDS_SPEED * time.delta_seconds(), 0.0, 0.0);
         }
@@ -321,10 +316,10 @@ fn add_collision_point(
         .insert(ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_KINEMATIC);
 }
 
-fn calculate_collision_points(
+fn calculate_collision_points<T:Component>(
     mut is_run: Local<bool>,
     mut commands: Commands,
-    players: Query<Entity, With<Player>>,
+    players: Query<Entity, With<T>>,
     children: Query<&Children>,
     transforms: Query<(&Name, &Transform)>,
 ) {
@@ -380,6 +375,7 @@ fn calculate_collision_points(
 }
 
 fn display_events(
+    rapier_context: Res<RapierContext>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
     mut collision_events: EventReader<CollisionEvent>,
@@ -388,11 +384,18 @@ fn display_events(
     for collision_event in collision_events.iter() {
         match collision_event {
             CollisionEvent::Started(entity1, entity2, _flags) => {
-                let name1 = names.get(*entity1).unwrap();
-                let name2 = names.get(*entity2).unwrap();
-                println!("Collision started: {:?} {:?}", name1, name2);
-                spawn_particles(&mut commands, &mut effects, Vec3::ZERO);
-                println!("Received collision event: {:?}", collision_event);
+                if let Some(contact_pair) = rapier_context.contact_pair(*entity1, *entity2) {
+                    let name1 = names.get(*entity1).unwrap();
+                    let name2 = names.get(*entity2).unwrap();
+
+                    //println!("Collision started: {:?} {:?}", name1, name2);
+                    for manifold in contact_pair.manifolds() {
+                        for solver_contact in manifold.solver_contacts() {
+                            spawn_particles(&mut commands, &mut effects, solver_contact.point());
+                        }
+                    }
+                    //println!("Received collision event: {:?}", collision_event);
+                }
             }
             _ => {}
         }
@@ -424,7 +427,7 @@ fn spawn_particles(
     let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
 
     // Add constant downward acceleration to simulate gravity
-    let accel = writer.lit(Vec3::Y * -8.).expr();
+    let accel = writer.lit(Vec3::Y * -1.).expr();
     let update_accel = AccelModifier::new(accel);
 
     // Add drag to make particles slow down a bit after the initial explosion
@@ -445,7 +448,7 @@ fn spawn_particles(
 
     let effect = EffectAsset::new(
         32768,
-        Spawner::burst(250.0.into(), 2.0.into()),
+        Spawner::once(250.0.into(), true),
         writer.finish(),
     )
     .with_name("firework")
@@ -511,7 +514,8 @@ fn main() {
                 process_input,
                 process_animation,
                 process_movement,
-                calculate_collision_points,
+                calculate_collision_points::<Player>,
+                calculate_collision_points::<Enemy>,
                 display_events,
             ),
         )
