@@ -63,7 +63,7 @@ fn setup_camera(mut commands: Commands) {
 
     let camera = Camera3dBundle {
         camera: Camera { ..default() },
-        transform: Transform::from_xyz(0.0, 3.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
+        transform: Transform::from_xyz(0.0, 3.0, 12.0).looking_at(Vec3::new(0.0, 3.0, 0.0), Vec3::Y),
         ..default()
     };
 
@@ -128,14 +128,12 @@ fn setup_pirate(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 }
 
-//https://bevy-cheatbook.github.io/3d/gltf.html#gltf-master-asset
 fn setup_scene_once_loaded(
     animations: Res<Animations>,
-    mut players: Query<&mut AnimationPlayer, Added<AnimationPlayer>>,
-    // mut scenes: Query<&mut Gltf, Added<Gltf>>,
+    mut animation_players: Query<&mut AnimationPlayer, Added<AnimationPlayer>>,
 ) {
-    for mut player in &mut players {
-        player.play(animations.idle.clone_weak()).repeat();
+    for mut animation_player in &mut animation_players.iter_mut() {
+        animation_player.play(animations.idle.clone_weak()).repeat();
     }
 }
 
