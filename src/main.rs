@@ -6,7 +6,7 @@ use bevy::{
     window::{close_on_esc, WindowMode},
 };
 use bevy_hanabi::prelude::*;
-//use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
 
 const LEFT_KEY: KeyCode = KeyCode::A;
@@ -19,7 +19,6 @@ const RUN_BACKWARDS_SPEED: f32 = -2.5;
 const HANDS_COLLISION_GROUP: u32 = 1;
 const FEET_COLLISION_GROUP: u32 = 2;
 const BODY_COLLISION_GROUP: u32 = 4;
-const HEAD_COLLISION_GROUP: u32 = 8;
 
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
 enum AnimationState {
@@ -34,9 +33,11 @@ enum AnimationState {
 #[derive(Component)]
 struct Player;
 
-#[derive(Component, Default)]
+#[derive(Component)]
 struct Enemy;
 
+#[derive(Component)]
+struct Cameraman;
 #[derive(Component, Default)]
 struct CharacterState {
     player_state: AnimationState,
@@ -73,7 +74,7 @@ fn setup_camera(mut commands: Commands) {
         ..default()
     };
 
-    commands.spawn(camera);
+    commands.spawn(camera).insert(Cameraman);
 
     commands.spawn(PointLightBundle {
         point_light: PointLight {
@@ -240,7 +241,7 @@ fn process_animation(
                             source: asset_server.load("punch.ogg"),
                             settings: PlaybackSettings {
                                 mode: PlaybackMode::Despawn,
-                                volume: Volume::Relative(VolumeLevel::new(0.3)),
+                                volume: Volume::Relative(VolumeLevel::new(0.4)),
                                 ..Default::default()
                             },
                             ..default()
@@ -256,7 +257,7 @@ fn process_animation(
                             source: asset_server.load("kick.ogg"),
                             settings: PlaybackSettings {
                                 mode: PlaybackMode::Despawn,
-                                volume: Volume::Relative(VolumeLevel::new(0.3)),
+                                volume: Volume::Relative(VolumeLevel::new(0.4)),
                                 ..Default::default()
                             },
                             ..default()
@@ -293,6 +294,7 @@ fn process_movement(time: Res<Time>, mut player: Query<(&mut Transform, &Charact
             controller.translation +=
                 Vec3::new(RUN_BACKWARDS_SPEED * time.delta_seconds(), 0.0, 0.0);
         }
+        controller.translation.x = controller.translation.x.clamp(-4.0, 4.0);
     }
 }
 
@@ -350,16 +352,6 @@ fn calculate_collision_points<T:Component>(
                     );
                 }
 
-                if name.as_str().starts_with("eyes") {
-                    add_collision_point(
-                        &mut commands,
-                        entity,
-                        HEAD_COLLISION_GROUP,
-                        Color::RED,
-                        0.3,
-                    );
-                }
-
                 if name.as_str().starts_with("spine_02") {
                     add_collision_point(
                         &mut commands,
@@ -385,15 +377,15 @@ fn display_events(
         match collision_event {
             CollisionEvent::Started(entity1, entity2, _flags) => {
                 if let Some(contact_pair) = rapier_context.contact_pair(*entity1, *entity2) {
-                    let name1 = names.get(*entity1).unwrap();
-                    let name2 = names.get(*entity2).unwrap();
+                    //let name1 = names.get(*entity1).unwrap();
+                    //let name2 = names.get(*entity2).unwrap();
 
                     //println!("Collision started: {:?} {:?}", name1, name2);
-                    for manifold in contact_pair.manifolds() {
-                        for solver_contact in manifold.solver_contacts() {
-                            spawn_particles(&mut commands, &mut effects, solver_contact.point());
-                        }
-                    }
+                    //for manifold in contact_pair.manifolds() {
+                    //    for solver_contact in manifold.solver_contacts() {
+                    //        spawn_particles(&mut commands, &mut effects, solver_contact.point());
+                    //    }
+                    //}
                     //println!("Received collision event: {:?}", collision_event);
                 }
             }
@@ -408,11 +400,11 @@ fn spawn_particles(
     position: Vec3,
 ) {
     let mut color_gradient1 = Gradient::new();
-    color_gradient1.add_key(0.0, Vec4::new(0.0, 0.0, 0.0, 0.5));
-    color_gradient1.add_key(1.0, Vec4::new(0.3, 0.3, 0.3, 1.0));
+    color_gradient1.add_key(0.0, Vec4::new(0.0, 0.0, 0.0, 1.0));
+    color_gradient1.add_key(1.0, Vec4::new(0.3, 0.3, 0.3, 0.2));
 
     let mut size_gradient1 = Gradient::new();
-    size_gradient1.add_key(0.2, Vec2::splat(0.1));
+    size_gradient1.add_key(0.2, Vec2::splat(0.01));
     size_gradient1.add_key(0.2, Vec2::splat(0.1));
 
     let writer = ExprWriter::new();
@@ -426,28 +418,21 @@ fn spawn_particles(
     let lifetime = writer.lit(0.8).uniform(writer.lit(1.2)).expr();
     let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
 
-    // Add constant downward acceleration to simulate gravity
-    let accel = writer.lit(Vec3::Y * -1.).expr();
-    let update_accel = AccelModifier::new(accel);
-
-    // Add drag to make particles slow down a bit after the initial explosion
-    let drag = writer.lit(5.).expr();
-    let update_drag = LinearDragModifier::new(drag);
 
     let init_pos = SetPositionSphereModifier {
         center: writer.lit(position).expr(),
-        radius: writer.lit(0.1).expr(),
-        dimension: ShapeDimension::Volume,
+        radius: writer.lit(0.2).expr(),
+        dimension: ShapeDimension::Surface,
     };
 
     // Give a bit of variation by randomizing the initial speed
     let init_vel = SetVelocitySphereModifier {
         center: writer.lit(Vec3::ZERO).expr(),
-        speed: (writer.rand(ScalarType::Float) * writer.lit(1.0) + writer.lit(2.0)).expr(),
+        speed: (writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(2.0)).expr(),
     };
 
     let effect = EffectAsset::new(
-        32768,
+        2048,
         Spawner::once(250.0.into(), true),
         writer.finish(),
     )
@@ -456,8 +441,6 @@ fn spawn_particles(
     .init(init_vel)
     .init(init_age)
     .init(init_lifetime)
-    .update(update_drag)
-    .update(update_accel)
     .render(ColorOverLifetimeModifier {
         gradient: color_gradient1,
     })
@@ -468,14 +451,26 @@ fn spawn_particles(
 
     let effect1 = effects.add(effect);
 
-    commands.spawn((
+    /*commands.spawn((
         Name::new("firework"),
         ParticleEffectBundle {
             effect: ParticleEffect::new(effect1),
             transform: Transform::IDENTITY,
             ..Default::default()
         },
-    ));
+    ));*/
+}
+
+fn update_cameraman(
+    ninja: Query<&Transform, (With<Player>, Without<Enemy>, Without<Cameraman>)>,
+    pirate: Query<&Transform, (With<Enemy>, Without<Player>, Without<Cameraman>)>,
+    mut cameraman: Query<&mut Transform, (With<Cameraman>, Without<Enemy>, Without<Player>)>,
+) {
+    let ninja = ninja.single();
+    let pirate = pirate.single();
+    let mut cameraman = cameraman.single_mut();
+    let look_at = (ninja.translation + pirate.translation) / 2.0;
+    cameraman.look_at(look_at, Vec3::Y);
 }
 
 fn main() {
@@ -494,7 +489,7 @@ fn main() {
             ..default()
         }))
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
-        //.add_plugins(WorldInspectorPlugin::new()) //If debug
+        .add_plugins(WorldInspectorPlugin::new()) //If debug
         .add_plugins(HanabiPlugin) //If debug
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(
@@ -502,7 +497,7 @@ fn main() {
             (
                 setup_camera,
                 setup_ninja,
-                setup_pirate,
+                //setup_pirate,
                 setup_background,
                 setup_music,
             ),
@@ -517,6 +512,7 @@ fn main() {
                 calculate_collision_points::<Player>,
                 calculate_collision_points::<Enemy>,
                 display_events,
+                //update_cameraman,
             ),
         )
         .add_systems(Update, close_on_esc)
