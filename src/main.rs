@@ -80,6 +80,7 @@ fn setup_camera(mut commands: Commands) {
         point_light: PointLight {
             intensity: 2500.0,
             shadows_enabled: true,
+            shadow_depth_bias : 0.001,
             ..default()
         },
         transform: Transform::from_xyz(4.0, 5.0, 4.0),
@@ -369,7 +370,7 @@ fn calculate_collision_points<T:Component>(
 fn display_events(
     rapier_context: Res<RapierContext>,
     mut commands: Commands,
-    mut effects: ResMut<Assets<EffectAsset>>,
+    //mut effects: ResMut<Assets<EffectAsset>>,
     mut collision_events: EventReader<CollisionEvent>,
     names: Query<&Name>,
 ) {
@@ -394,6 +395,7 @@ fn display_events(
     }
 }
 
+/*
 fn spawn_particles(
     commands: &mut Commands,
     effects: &mut ResMut<Assets<EffectAsset>>,
@@ -422,7 +424,7 @@ fn spawn_particles(
     let init_pos = SetPositionSphereModifier {
         center: writer.lit(position).expr(),
         radius: writer.lit(0.2).expr(),
-        dimension: ShapeDimension::Surface,
+        dimension: ShapeDimension::Volume,
     };
 
     // Give a bit of variation by randomizing the initial speed
@@ -460,6 +462,7 @@ fn spawn_particles(
         },
     ));*/
 }
+*/
 
 fn update_cameraman(
     ninja: Query<&Transform, (With<Player>, Without<Enemy>, Without<Cameraman>)>,
@@ -497,7 +500,7 @@ fn main() {
             (
                 setup_camera,
                 setup_ninja,
-                //setup_pirate,
+                setup_pirate,
                 setup_background,
                 setup_music,
             ),
@@ -512,7 +515,7 @@ fn main() {
                 calculate_collision_points::<Player>,
                 calculate_collision_points::<Enemy>,
                 display_events,
-                //update_cameraman,
+                update_cameraman,
             ),
         )
         .add_systems(Update, close_on_esc)
